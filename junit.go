@@ -1,38 +1,40 @@
 package main
 
 import (
-	"encoding/xml"
 	"io"
 	"os"
 	"path"
+	"strconv"
 
+	"github.com/antchfx/xmlquery"
 	"github.com/bmatcuk/doublestar"
 )
 
-type junitXML struct {
-	TestCases []struct {
-		File string  `xml:"file,attr"`
-		Time float64 `xml:"time,attr"`
-	} `xml:"testcase"`
-}
-
-func loadJUnitXML(reader io.Reader) *junitXML {
-	var junitXML junitXML
-
-	decoder := xml.NewDecoder(reader)
-	err := decoder.Decode(&junitXML)
+func loadJUnitXML(reader io.Reader) map[string]float64 {
+	doc, err := xmlquery.Parse(reader)
 	if err != nil {
 		fatalMsg("failed to parse junit xml: %v\n", err)
 	}
 
-	return &junitXML
+	testCases := make(map[string]float64)
+
+	xmlquery.FindEach(doc, "//testsuite", func(_ int, node *xmlquery.Node) {
+		timeStr := node.SelectAttr("time")
+		fileTime, err := strconv.ParseFloat(timeStr, 64)
+		if err != nil {
+			fatalMsg("failed to parse time: %s %v\n", timeStr, err)
+		}
+		testCases[node.SelectAttr("name")] += fileTime
+	})
+
+	return testCases
 }
 
 func addFileTimesFromIOReader(fileTimes map[string]float64, reader io.Reader) {
-	junitXML := loadJUnitXML(reader)
-	for _, testCase := range junitXML.TestCases {
-		filePath := path.Clean(testCase.File)
-		fileTimes[filePath] += testCase.Time
+	testCases := loadJUnitXML(reader)
+	for file, fileTime := range testCases {
+		filePath := path.Clean(file)
+		fileTimes[filePath] += fileTime
 	}
 }
 
