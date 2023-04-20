@@ -1,4 +1,4 @@
-module github.com/leonid-shevtsov/split_tests
+module github.com/hottestseason/split_tests
 
 go 1.14
 
